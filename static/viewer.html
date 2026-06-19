@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipeline Viewer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0d0d0d;
+      color: #ccc;
+      font-family: 'Segoe UI', monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      border-bottom: 1px solid #1f1f1f;
+      flex-shrink: 0;
+    }
+
+    .topbar h1 {
+      font-size: 0.85rem;
+      font-weight: 400;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #666;
+    }
+
+    .topbar .video-name {
+      font-size: 0.8rem;
+      color: #444;
+    }
+
+    .back-btn {
+      font-size: 0.8rem;
+      color: #555;
+      text-decoration: none;
+      border: 1px solid #222;
+      padding: 6px 14px;
+      border-radius: 4px;
+    }
+
+    .back-btn:hover { color: #999; border-color: #444; }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #1f1f1f;
+      flex-shrink: 0;
+    }
+
+    .tab {
+      padding: 10px 24px;
+      font-size: 0.8rem;
+      color: #444;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .tab:hover { color: #888; }
+    .tab.active { color: #ccc; border-bottom-color: #ccc; }
+
+    .content {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .panel {
+      display: none;
+      width: 100%;
+      height: 100%;
+    }
+
+    .panel.active { display: flex; flex-direction: column; }
+
+    #cloudCanvas {
+      flex: 1;
+      width: 100%;
+      background: #0a0a0a;
+    }
+
+    .cloud-controls {
+      padding: 10px 20px;
+      border-top: 1px solid #1f1f1f;
+      font-size: 0.75rem;
+      color: #333;
+      display: flex;
+      gap: 30px;
+      flex-shrink: 0;
+    }
+
+    .depth-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      gap: 16px;
+    }
+
+    #depthImage {
+      max-height: calc(100% - 80px);
+      max-width: 100%;
+      object-fit: contain;
+    }
+
+    .depth-controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .ctrl-btn {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      color: #888;
+      padding: 8px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+
+    .ctrl-btn:hover { border-color: #444; color: #ccc; }
+
+    .frame-label {
+      font-size: 0.8rem;
+      color: #444;
+      min-width: 100px;
+      text-align: center;
+    }
+
+    input[type="number"] {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      color: #888;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      width: 80px;
+      text-align: center;
+    }
+
+    .loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0d0d0d;
+      font-size: 0.8rem;
+      color: #444;
+      letter-spacing: 2px;
+    }
+
+    .pose-tabs {
+      display: flex;
+      gap: 10px;
+      padding: 15px;
+      background: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .pose-tab {
+      padding: 8px 16px;
+      border: 1px solid #cbd5e1;
+      background: #f8f9fa;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #64748b;
+      font-weight: 500;
+    }
+    
+    .pose-tab.active {
+      background: #3b82f6;
+      color: #fff;
+      border-color: #3b82f6;
+    }
+    
+    .pose-chart {
+      flex: 1;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Vision Pipeline · Viewer</h1>
+  <span class="video-name" id="videoLabel"></span>
+  <a href="/" class="back-btn">← Back</a>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('cloud')">Point Cloud</div>
+  <div class="tab" onclick="switchTab('depth')">Depth Maps</div>
+  <div class="tab" onclick="switchTab('pose')">Pose Graph</div>
+  <div class="tab" onclick="switchTab('video')">Original Video</div>
+</div>
+
+<div class="content">
+
+  <div class="loading" id="loading">Loading...</div>
+
+  <div class="panel active" id="panel-cloud">
+    <canvas id="cloudCanvas"></canvas>
+    <div class="cloud-controls">
+      <span>Left click: rotate</span>
+      <span>Right click: pan</span>
+      <span>Scroll: zoom</span>
+      <span id="pointCount"></span>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-depth">
+    <div class="depth-panel">
+      <img id="depthImage" src="" alt="Depth frame">
+      <div class="depth-controls">
+        <button class="ctrl-btn" onclick="changeFrame(-10)">−10</button>
+        <button class="ctrl-btn" onclick="changeFrame(-1)">−1</button>
+        <span class="frame-label" id="frameLabel">Frame 0</span>
+        <button class="ctrl-btn" onclick="changeFrame(1)">+1</button>
+        <button class="ctrl-btn" onclick="changeFrame(10)">+10</button>
+        <input type="number" id="frameInput" placeholder="Go to" min="0">
+        <button class="ctrl-btn" onclick="goToFrame()">Go</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-pose">
+    <div class="pose-tabs">
+      <button class="pose-tab active" onclick="showPoseGraph('traj', event)">3D Trajectory</button>
+      <button class="pose-tab" onclick="showPoseGraph('x', event)">X Translation</button>
+      <button class="pose-tab" onclick="showPoseGraph('y', event)">Y Translation</button>
+      <button class="pose-tab" onclick="showPoseGraph('z', event)">Z Translation</button>
+      <button class="pose-tab" onclick="showPoseGraph('roll', event)">Roll</button>
+      <button class="pose-tab" onclick="showPoseGraph('pitch', event)">Pitch</button>
+      <button class="pose-tab" onclick="showPoseGraph('yaw', event)">Yaw</button>
+    </div>
+    <div id="pose-traj" class="pose-chart" style="display:block;"></div>
+    <div id="pose-x" class="pose-chart" style="display:none;"></div>
+    <div id="pose-y" class="pose-chart" style="display:none;"></div>
+    <div id="pose-z" class="pose-chart" style="display:none;"></div>
+    <div id="pose-roll" class="pose-chart" style="display:none;"></div>
+    <div id="pose-pitch" class="pose-chart" style="display:none;"></div>
+    <div id="pose-yaw" class="pose-chart" style="display:none;"></div>
+  </div>
+
+  <div class="panel" id="panel-video">
+    <div class="depth-panel">
+      <video id="originalVideo" controls style="max-height: 100%; max-width: 100%;"></video>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const params    = new URLSearchParams(window.location.search);
+  const videoName = params.get('video');
+  document.getElementById('videoLabel').textContent = videoName || 'No Video Selected';
+  if (videoName) {
+      document.getElementById('originalVideo').src = `/uploads/${videoName}.mp4`;
+  }
+
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t, i) => {
+      t.classList.toggle('active', ['cloud','depth','pose','video'][i] === name);
+    });
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(`panel-${name}`).classList.add('active');
+
+    if (name === 'pose' && !poseLoaded) loadPoseGraph();
+    if (name === 'cloud' && renderer) renderer.setSize(
+      document.getElementById('cloudCanvas').clientWidth,
+      document.getElementById('cloudCanvas').clientHeight
+    );
+  }
+
+  let renderer, scene, camera, animFrameId;
+
+  function initPointCloud() {
+    const canvas = document.getElementById('cloudCanvas');
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+
+    scene  = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a0a);
+
+    camera = new THREE.PerspectiveCamera(60, canvas.clientWidth / canvas.clientHeight, 0.01, 1000);
+    camera.position.set(0, 0, 5);
+
+    let isDragging = false, isRightDrag = false;
+    let prevX = 0, prevY = 0;
+    let rotX = 0, rotY = 0;
+    let panX = 0, panY = 0;
+    let zoom = 5;
+
+    canvas.addEventListener('mousedown', e => {
+      isDragging   = true;
+      isRightDrag  = e.button === 2;
+      prevX = e.clientX;
+      prevY = e.clientY;
+    });
+
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    window.addEventListener('mouseup',   () => isDragging = false);
+    window.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      const dx = e.clientX - prevX;
+      const dy = e.clientY - prevY;
+      if (isRightDrag) {
+        panX += dx * 0.01;
+        panY -= dy * 0.01;
+      } else {
+        rotY += dx * 0.005;
+        rotX += dy * 0.005;
+      }
+      prevX = e.clientX;
+      prevY = e.clientY;
+    });
+
+    canvas.addEventListener('wheel', e => {
+      zoom += e.deltaY * 0.01;
+      zoom = Math.max(0.1, zoom);
+    });
+
+    loadPLY();
+
+    function animate() {
+      animFrameId = requestAnimationFrame(animate);
+      camera.position.x = zoom * Math.sin(rotY) * Math.cos(rotX) + panX;
+      camera.position.y = zoom * Math.sin(rotX) + panY;
+      camera.position.z = zoom * Math.cos(rotY) * Math.cos(rotX);
+      camera.lookAt(panX, panY, 0);
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+      camera.aspect = canvas.clientWidth / canvas.clientHeight;
+      camera.updateProjectionMatrix();
+    });
+  }
+
+  function loadPLY() {
+      if (!videoName) {
+          document.getElementById('loading').textContent = 'Error Missing video parameter in URL';
+          return;
+      }
+
+      const url = `/outputs/${videoName}/pointclouds/merged.ply`;
+      const loader = new THREE.PLYLoader();
+      
+      loader.load(url, function (geometry) {
+          const hasColors = geometry.hasAttribute('color');
+          
+          const material = new THREE.PointsMaterial({
+              size: 0.02,
+              vertexColors: hasColors,
+              color: hasColors ? 0xffffff : 0x00ffcc
+          });
+          const points = new THREE.Points(geometry, material);
+
+          geometry.computeBoundingBox();
+          const center = new THREE.Vector3();
+          geometry.boundingBox.getCenter(center);
+          points.position.sub(center);
+
+          scene.add(points);
+          document.getElementById('pointCount').textContent = 
+              `${geometry.attributes.position.count.toLocaleString()} points`;
+          document.getElementById('loading').style.display = 'none';
+          
+      }, undefined, function (error) {
+          document.getElementById('loading').textContent = 'Failed to load point cloud.';
+          console.error(error);
+      });
+  }
+
+  let depthFrames = [];
+  let currentFrame = 0;
+
+  async function loadDepthFrames() {
+    if (!videoName) return;
+    try {
+      const res = await fetch(`/depth_frames/${videoName}`);
+      depthFrames = await res.json();
+      if (depthFrames.length > 0) showFrame(0);
+    } catch (e) {
+      console.error("Depth frames could not be loaded");
+    }
+  }
+
+  function showFrame(idx) {
+    idx = Math.max(0, Math.min(depthFrames.length - 1, idx));
+    currentFrame = idx;
+    document.getElementById('depthImage').src =
+      `/outputs/${videoName}/visualizations/${depthFrames[idx]}`;
+    document.getElementById('frameLabel').textContent =
+      `Frame ${idx} / ${depthFrames.length - 1}`;
+  }
+
+  function changeFrame(delta) { showFrame(currentFrame + delta); }
+
+  function goToFrame() {
+    const val = parseInt(document.getElementById('frameInput').value);
+    if (!isNaN(val)) showFrame(val);
+  }
+
+  let poseLoaded = false;
+
+  function showPoseGraph(id, event) {
+    document.querySelectorAll('.pose-tab').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+
+    document.querySelectorAll('.pose-chart').forEach(chart => chart.style.display = 'none');
+    const activeChart = document.getElementById('pose-' + id);
+    activeChart.style.display = 'block';
+
+    Plotly.Plots.resize(activeChart);
+    }
+
+  async function loadPoseGraph() {
+    if (!videoName) return;
+    try {
+      const res  = await fetch(`/outputs/${videoName}/visualizations/pose_graph.json`);
+      const data = await res.json();
+
+      const frames    = data.map(p => p.frame);
+      const x         = data.map(p => p.x);
+      const y         = data.map(p => p.y);
+      const z         = data.map(p => p.z);
+      const roll      = data.map(p => p.roll  || 0);
+      const pitch     = data.map(p => p.pitch || 0);
+      const yaw       = data.map(p => p.yaw   || 0);
+      const frameIdx  = data.map((_, i) => i);
+
+      const layoutBase = {
+        paper_bgcolor: '#f8f9fa',
+        plot_bgcolor:  '#ffffff',
+        font:  { color: '#333', size: 12 },
+        margin: { t: 40, b: 40, l: 60, r: 40 },
+        showlegend: false,
+        height: window.innerHeight - 150
+      };
+
+      Plotly.newPlot('pose-traj', [{
+        type: 'scatter3d', mode: 'lines+markers',
+        x, y, z,
+        marker: { size: 3, color: frameIdx, colorscale: 'Viridis' },
+        line:   { color: '#94a3b8', width: 2 },
+        text: frames,
+        hovertemplate: 'Frame %{text}<br>X %{x:.2f}<br>Y %{y:.2f}<br>Z %{z:.2f}'
+      }], { ...layoutBase, title: '3D Camera Trajectory' });
+
+      Plotly.newPlot('pose-x', [{
+        type: 'scatter', mode: 'lines', x: frameIdx, y: x,
+        line: { color: '#ef4444', width: 2 },
+        text: frames,
+        hovertemplate: 'Frame %{text}<br>X %{y:.3f}m'
+      }], { ...layoutBase, title: 'X Translation (Meters)' });
+
+      Plotly.newPlot('pose-y', [{
+        type: 'scatter', mode: 'lines', x: frameIdx, y: y,
+        line: { color: '#10b981', width: 2 },
+        text: frames,
+        hovertemplate: 'Frame %{text}<br>Y %{y:.3f}m'
+      }], { ...layoutBase, title: 'Y Translation (Meters)' });
+
+      Plotly.newPlot('pose-z', [{
+        type: 'scatter', mode: 'lines', x: frameIdx, y: z,
+        line: { color: '#3b82f6', width: 2 },
+        text: frames,
+        hovertemplate: 'Frame %{text}<br>Z %{y:.3f}m'
+      }], { ...layoutBase, title: 'Z Translation (Meters)' });
+
+      Plotly.newPlot('pose-roll', [{
+        type: 'scatter', mode: 'lines', x: frameIdx, y: roll,
+        line: { color: '#f59e0b', width: 2 },
+        text: frames,
+        hovertemplate: 'Frame %{text}<br>Roll %{y:.1f}°'
+      }], { ...layoutBase, title: 'Roll (Degrees)' });
+
+      Plotly.newPlot('pose-pitch', [{
+        type: 'scatter', mode: 'lines', x: frameIdx, y: pitch,
+        line: { color: '#8b5cf6', width: 2 },
+        text: frames,
+        hovertemplate: 'Frame %{text}<br>Pitch %{y:.1f}°'
+      }], { ...layoutBase, title: 'Pitch (Degrees)' });
+
+      Plotly.newPlot('pose-yaw', [{
+        type: 'scatter', mode: 'lines', x: frameIdx, y: yaw,
+        line: { color: '#ec4899', width: 2 },
+        text: frames,
+        hovertemplate: 'Frame %{text}<br>Yaw %{y:.1f}°'
+      }], { ...layoutBase, title: 'Yaw (Degrees)' });
+
+      Plotly.Plots.resize(document.getElementById('pose-traj'));
+      poseLoaded = true;
+    } catch (e) {
+      console.error("Pose graph could not be loaded");
+    }
+  }
+
+  initPointCloud();
+  loadDepthFrames();
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+uploads/
+outputs/
+__pycache__/
+scripts/__pycache__/
+*.deb
+DA3_Metric_Model/model.safetensors
+DA3_Metric_Model/gitattributes
+DA3_Metric_Model/config.json
