@@ -46,10 +46,66 @@ The pipeline includes a custom built web application interface engineered to han
 * **Client Side 3D Rendering** The viewer utilizes Three.js to render massive PLY point clouds directly in the browser using WebGL. This offloads the graphical rendering burden from the server directly to the local GPU of the user.
 * **Data Management** Users can visually manage their completed pipeline runs. The interface allows for instant deletion of heavy point cloud data or immediate transition into the interactive 3D visualizer tool.
 
-## Local CPU Deployment Guide
+## 3. Deployment and Execution
 
-You can run this entire pipeline on a local CPU for testing and validation. Compute times will be significantly slower than a dedicated GPU server but the mathematical output remains absolutely identical.
+This pipeline supports both local validation testing and production grade remote server deployment.
+
+### A. Local CPU Deployment
+You can run this entire pipeline on a local machine for testing and validation. Compute times will be significantly slower than a dedicated GPU server but the mathematical output remains absolutely identical.
 
 **Step 1 Clone the repository**
 ```bash
-git clone git@github.com/Zain-Usmani10/Vision_Pipeline.git
+git clone git@github.com:Zain-Usmani10/Vision_Pipeline.git
+cd Vision_Pipeline
+```
+
+**Step 2 Install requirements**
+Ensure you have Python 3.10 or higher installed. Create and activate a virtual environment before installing the dependencies.
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+**Step 3 Download inference weights**
+The Depth Anything 3 model weights are too massive for standard version control storage. You must acquire them manually.
+1. Navigate to the official Hugging Face repository for Depth Anything 3.
+2. Download the `model.safetensors` and `config.json` files.
+3. Place both files directly inside the `DA3_Metric_Model/` directory.
+
+**Step 4 Execute the backend**
+Launch the python application to begin processing your video files locally.
+```bash
+python app.py
+```
+
+### B. Remote GPU Server Deployment
+If you are deploying this pipeline on a remote headless Linux server you must use a production WSGI server and a secure networking tunnel to expose the web interface.
+
+**Step 1 Provision the production environment**
+Follow Steps 1 through 3 from the Local CPU Deployment guide to clone the code and download the required weights.
+
+**Step 2 Install the Cloudflare Daemon**
+Download and install the Cloudflare tunneling tool to securely route traffic from your remote server to the internet without opening firewall ports.
+```bash
+wget -q [https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb](https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb)
+dpkg -i cloudflared-linux-amd64.deb
+```
+
+**Step 3 Launch the Gunicorn Server**
+Do not use the standard python command for a production environment. Bind the application to a local port using Gunicorn and run it as a background daemon process.
+```bash
+gunicorn -w 1 -b 127.0.0.1:5000 app:app --daemon
+```
+
+**Step 4 Initialize the Secure Tunnel**
+Route the local Gunicorn port through the Cloudflare daemon to generate a secure public HTTPS URL for your frontend interface.
+```bash
+cloudflared tunnel --url [http://127.0.0.1:5000](http://127.0.0.1:5000)
+```
+
+**Step 5 Process Management and Updates**
+When you need to restart the server or push new code updates you must terminate the existing background processes to free up the network port before restarting Gunicorn.
+```bash
+pkill gunicorn
+```
