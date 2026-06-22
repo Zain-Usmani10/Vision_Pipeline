@@ -6,3 +6,4 @@ scripts/__pycache__/
 DA3_Metric_Model/model.safetensors
 DA3_Metric_Model/gitattributes
 DA3_Metric_Model/config.json
+*.log

@@ -97,6 +97,7 @@
       font-size: 0.75rem;
       color: #333;
       display: flex;
+      align-items: center;
       gap: 30px;
       flex-shrink: 0;
     }
@@ -198,9 +199,9 @@
 <body>
 
 <div class="topbar">
-  <h1>Vision Pipeline · Viewer</h1>
+  <h1>Vision Pipeline Viewer</h1>
   <span class="video-name" id="videoLabel"></span>
-  <a href="/" class="back-btn">← Back</a>
+  <a href="/" class="back-btn">Back</a>
 </div>
 
 <div class="tabs">
@@ -212,15 +213,16 @@
 
 <div class="content">
 
-  <div class="loading" id="loading">Loading...</div>
+  <div class="loading" id="loading">Loading</div>
 
   <div class="panel active" id="panel-cloud">
     <canvas id="cloudCanvas"></canvas>
     <div class="cloud-controls">
-      <span>Left click: rotate</span>
-      <span>Right click: pan</span>
-      <span>Scroll: zoom</span>
+      <span>Left click to rotate</span>
+      <span>Right click to pan</span>
+      <span>Scroll to zoom</span>
       <span id="pointCount"></span>
+      <button class="ctrl-btn" id="downloadBtn" style="margin-left: auto;">Download PLY</button>
     </div>
   </div>
 
@@ -228,11 +230,11 @@
     <div class="depth-panel">
       <img id="depthImage" src="" alt="Depth frame">
       <div class="depth-controls">
-        <button class="ctrl-btn" onclick="changeFrame(-10)">−10</button>
-        <button class="ctrl-btn" onclick="changeFrame(-1)">−1</button>
+        <button class="ctrl-btn" onclick="changeFrame(-10)">Minus 10</button>
+        <button class="ctrl-btn" onclick="changeFrame(-1)">Minus 1</button>
         <span class="frame-label" id="frameLabel">Frame 0</span>
-        <button class="ctrl-btn" onclick="changeFrame(1)">+1</button>
-        <button class="ctrl-btn" onclick="changeFrame(10)">+10</button>
+        <button class="ctrl-btn" onclick="changeFrame(1)">Plus 1</button>
+        <button class="ctrl-btn" onclick="changeFrame(10)">Plus 10</button>
         <input type="number" id="frameInput" placeholder="Go to" min="0">
         <button class="ctrl-btn" onclick="goToFrame()">Go</button>
       </div>
@@ -273,6 +275,16 @@
   if (videoName) {
       document.getElementById('originalVideo').src = `/uploads/${videoName}.mp4`;
   }
+
+  document.getElementById('downloadBtn').addEventListener('click', () => {
+    if (!videoName) return;
+    const link = document.createElement('a');
+    link.href = `/outputs/${videoName}/pointclouds/merged.ply`;
+    link.download = `${videoName}_pointcloud.ply`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  });
 
   function switchTab(name) {
     document.querySelectorAll('.tab').forEach((t, i) => {
