@@ -2,7 +2,7 @@
 
 This repository contains a high performance monocular vision pipeline engineered for autonomous robotics and spatial reconstruction. The system transforms flat 2D video feeds into mathematically accurate 3D point clouds without relying on physical LiDAR sensors or stereo camera hardware.
 
-## Algorithmic Foundations
+## 1) Algorithmic Foundations
 
 ### 1. Camera Intrinsic Unprojection and Focal Length
 The most critical variable in monocular spatial vision is the internal geometry of the camera lens. We must convert digital pixels back into physical light rays. To do this we calculate the focal length in pixels using the 35mm equivalent focal length provided by standard hardware specifications.
@@ -37,7 +37,26 @@ $$Y = \frac{(v - c_y) \times Z}{f_y}$$
 
 We apply statistical outlier removal to eliminate floating noise artifacts. The resulting data structure is a dense and metric accurate point cloud ready for robotic path planning or spatial visualization frameworks.
 
-## Frontend Architecture and Capabilities
+## 2) Directory Blueprint
+
+You must adhere to this exact folder structure for the pipeline to execute correctly. The model weights must be placed exactly as shown below.
+
+```text
+vision_pipeline/
+├── DA3_Metric_Model/
+│   ├── README.md
+│   ├── config.json          <-- (Must be downloaded manually)
+│   └── model.safetensors    <-- (Must be downloaded manually)
+├── scripts/                 <-- (Core spatial math and processing)
+├── static/                  <-- (Frontend web viewer and JS)
+├── Depth-Anything-3/        <-- (Flattened framework API files)
+├── app.py                   <-- (Flask web server entry point)
+├── main.py                  <-- (Local backend execution loop)
+├── requirements.txt
+└── .gitignore
+```
+
+## 3) Frontend Architecture and Capabilities
 
 The pipeline includes a custom built web application interface engineered to handle heavy 3D rendering and user management without crashing the browser thread.
 
@@ -46,7 +65,7 @@ The pipeline includes a custom built web application interface engineered to han
 * **Client Side 3D Rendering** The viewer utilizes Three.js to render massive PLY point clouds directly in the browser using WebGL. This offloads the graphical rendering burden from the server directly to the local GPU of the user.
 * **Data Management** Users can visually manage their completed pipeline runs. The interface allows for instant deletion of heavy point cloud data or immediate transition into the interactive 3D visualizer tool.
 
-## 3. Deployment and Execution
+## 4) Deployment and Execution
 
 This pipeline supports both local validation testing and production grade remote server deployment.
 
@@ -85,26 +104,33 @@ If you are deploying this pipeline on a remote headless Linux server you must us
 **Step 1 Provision the production environment**
 Follow Steps 1 through 3 from the Local CPU Deployment guide to clone the code and download the required weights.
 
-**Step 2 Install the Cloudflare Daemon**
-Download and install the Cloudflare tunneling tool to securely route traffic from your remote server to the internet without opening firewall ports.
+**Step 2 Install the Ngrok Agent**
+Download and install the Ngrok tunneling tool to securely route traffic from your remote server to the internet without opening firewall ports.
 ```bash
-wget -q [https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb](https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb)
-dpkg -i cloudflared-linux-amd64.deb
+curl -sSL [https://ngrok-agent.s3.amazonaws.com/ngrok.asc](https://ngrok-agent.s3.amazonaws.com/ngrok.asc) | tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+echo "deb [https://ngrok-agent.s3.amazonaws.com](https://ngrok-agent.s3.amazonaws.com) buster main" | tee /etc/apt/sources.list.d/ngrok.list
+apt update && apt install ngrok
 ```
 
-**Step 3 Launch the Gunicorn Server**
+**Step 3 Authenticate Ngrok**
+You must create a free account at ngrok.com to obtain your authentication token and static domain name.
+```bash
+ngrok config add-authtoken <YOUR_TOKEN_HERE>
+```
+
+**Step 4 Launch the Gunicorn Server**
 Do not use the standard python command for a production environment. Bind the application to a local port using Gunicorn and run it as a background daemon process.
 ```bash
-gunicorn -w 1 -b 127.0.0.1:5000 app:app --daemon
+nohup gunicorn -w 1 -b 127.0.0.1:5000 app:app > /root/vision_pipeline/server.log 2>&1 &
 ```
 
-**Step 4 Initialize the Secure Tunnel**
-Route the local Gunicorn port through the Cloudflare daemon to generate a secure public HTTPS URL for your frontend interface.
+**Step 5 Initialize the Secure Tunnel**
+Route the local Gunicorn port through the Ngrok daemon to generate your static public HTTPS URL. Replace the domain placeholder with your assigned free domain.
 ```bash
-cloudflared tunnel --url [http://127.0.0.1:5000](http://127.0.0.1:5000)
+nohup ngrok http --url=<YOUR_STATIC_DOMAIN_HERE> 127.0.0.1:5000 > /root/vision_pipeline/ngrok.log 2>&1 &
 ```
 
-**Step 5 Process Management and Updates**
+**Step 6 Process Management and Updates**
 When you need to restart the server or push new code updates you must terminate the existing background processes to free up the network port before restarting Gunicorn.
 ```bash
 pkill gunicorn
