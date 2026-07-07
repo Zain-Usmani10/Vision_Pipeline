@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Live Spatial Mapping</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d0d0d; color: #ccc; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; border-bottom: 1px solid #1f1f1f; }
+    .topbar h1 { font-size: 0.85rem; font-weight: 400; letter-spacing: 2px; text-transform: uppercase; color: #666; }
+    .nav-links { display: flex; gap: 15px; }
+    .action-btn { font-size: 0.8rem; color: #555; text-decoration: none; border: 1px solid #222; padding: 6px 14px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+    .action-btn:hover { color: #999; border-color: #444; }
+    #downloadBtn { display: none; background: #007acc; color: white; border: none; }
+    #downloadBtn:hover { background: #0062a3; color: white; }
+    #backToStatsBtn { display: none; background: #cc4400; color: white; border: none; }
+    #backToStatsBtn:hover { background: #a33300; color: white; }
+    .content { flex: 1; position: relative; overflow: hidden; }
+    #cloudCanvas { width: 100%; height: 100%; background: #0a0a0a; display: none; }
+    .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(18, 18, 18, 0.9); z-index: 10; }
+    .status-box { padding: 30px; background: rgba(45, 45, 45, 0.9); border-radius: 4px; font-family: monospace; text-align: center; line-height: 1.6; }
+    .massive-count { font-size: 3.5rem; font-weight: bold; color: #00ffcc; margin: 20px 0; letter-spacing: 2px; }
+    .metrics { font-size: 1.2rem; color: #888; }
+    .pulse { animation: blinker 1.5s linear infinite; color: #ff9900; font-size: 1.2rem; }
+    .final-stats { color: #00ffcc; font-size: 1.2rem; font-weight: bold; margin-bottom: 20px; }
+    @keyframes blinker { 50% { opacity: 0; } }
+
+    #finalMetricsOverlay {
+        background: rgba(20, 20, 20, 0.85);
+        border: 2px solid #00ffcc;
+        padding: 30px 50px;
+        border-radius: 10px;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 30px;
+        box-shadow: 0 0 20px rgba(0, 255, 204, 0.2);
+    }
+    .metrics-grid {
+        display: flex;
+        gap: 40px;
+    }
+    .metric-block {
+        text-align: center;
+        font-family: monospace;
+    }
+    .metric-title {
+        font-size: 0.9rem;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+        display: block;
+    }
+    .metric-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #00ffcc;
+    }
+    #viewModelBtn {
+        background: #00ffcc;
+        color: #000;
+        border: none;
+        padding: 15px 30px;
+        font-size: 1.1rem;
+        font-weight: bold;
+        border-radius: 4px;
+        cursor: pointer;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    #viewModelBtn:hover {
+        background: #00ccaa;
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Live Spatial Mapping</h1>
+  <div class="nav-links">
+    <button id="backToStatsBtn" class="action-btn">Return to Stats</button>
+    <a id="downloadBtn" href="/outputs/final_submap.ply" download class="action-btn">Download Final Model</a>
+    <a href="/" class="action-btn">Return to Dashboard</a>
+  </div>
+</div>
+
+<div class="content">
+  <div class="overlay" id="telemetryOverlay">
+    <div class="status-box" id="statusBox">
+      <div id="pipeline_state" class="pulse">INITIALIZING VRAM</div>
+      <div class="massive-count" id="pointCountDisplay">0</div>
+      <div class="metrics" id="metricsDisplay">Points Fused | Frame <span id="frameCounter">0</span></div>
+    </div>
+
+    <div id="finalMetricsOverlay">
+        <div class="final-stats">PIPELINE COMPLETE</div>
+        <div class="metrics-grid">
+            <div class="metric-block">
+                <span class="metric-title">Total Points</span>
+                <span class="metric-value" id="fm-points">0</span>
+            </div>
+            <div class="metric-block">
+                <span class="metric-title">Total Frames</span>
+                <span class="metric-value" id="fm-frames">0</span>
+            </div>
+            <div class="metric-block">
+                <span class="metric-title">Process Time</span>
+                <span class="metric-value" id="fm-time">0.0s</span>
+            </div>
+            <div class="metric-block">
+                <span class="metric-title">Average FPS</span>
+                <span class="metric-value" id="fm-fps">0.0</span>
+            </div>
+        </div>
+        <button id="viewModelBtn">Launch 3D Viewer</button>
+    </div>
+  </div>
+  
+  <canvas id="cloudCanvas"></canvas>
+</div>
+
+<script>
+  let renderer, scene, camera, controls, animFrameId;
+  let checkInterval;
+  let finalFrames = 0;
+  let startTime = Date.now();
+  let isModelLoaded = false;
+
+  function initPointCloud() {
+    if (isModelLoaded) return;
+    
+    const canvas = document.getElementById('cloudCanvas');
+    canvas.style.display = 'block';
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+    
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a0a);
+    
+    camera = new THREE.PerspectiveCamera(60, canvas.clientWidth / canvas.clientHeight, 0.01, 1000);
+    camera.position.set(0, 0, 3);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    loadPLY();
+
+    function animate() {
+      animFrameId = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+      camera.aspect = canvas.clientWidth / canvas.clientHeight;
+      camera.updateProjectionMatrix();
+    });
+    
+    isModelLoaded = true;
+  }
+
+  function loadPLY() {
+    const url = '/outputs/final_submap.ply';
+    const loader = new THREE.PLYLoader();
+    
+    loader.load(url, function (geometry) {
+      const material = new THREE.PointsMaterial({ size: 0.02, vertexColors: true });
+      const points = new THREE.Points(geometry, material);
+      
+      geometry.computeBoundingBox();
+      const center = new THREE.Vector3();
+      geometry.boundingBox.getCenter(center);
+      points.position.sub(center);
+      
+      points.rotation.x = Math.PI;
+      
+      scene.add(points);
+    });
+  }
+
+  function checkStatus() {
+    fetch('/api/status')
+      .then(res => res.json())
+      .then(data => {
+        const stateElement = document.getElementById('pipeline_state');
+        finalFrames = data.frame_idx || 0;
+        const pointsCount = (data.point_count || 0).toLocaleString();
+        
+        if (data.status === 'processing') {
+          document.getElementById('frameCounter').innerText = finalFrames;
+          document.getElementById('pointCountDisplay').innerText = pointsCount;
+          stateElement.innerText = 'MAPPING IN PROGRESS';
+        } else if (data.status === 'finished') {
+          clearInterval(checkInterval);
+          
+          const totalSeconds = (Date.now() - startTime) / 1000;
+          let fps = totalSeconds > 0 ? (finalFrames / totalSeconds).toFixed(2) : 0;
+          
+          document.getElementById('statusBox').style.display = 'none';
+          document.getElementById('finalMetricsOverlay').style.display = 'flex';
+          
+          document.getElementById('fm-points').innerText = pointsCount;
+          document.getElementById('fm-frames').innerText = finalFrames;
+          document.getElementById('fm-time').innerText = totalSeconds.toFixed(1) + "s";
+          document.getElementById('fm-fps').innerText = fps;
+        }
+      });
+  }
+
+  document.getElementById('viewModelBtn').addEventListener('click', () => {
+    document.getElementById('telemetryOverlay').style.display = 'none';
+    document.getElementById('downloadBtn').style.display = 'block';
+    document.getElementById('backToStatsBtn').style.display = 'block';
+    initPointCloud();
+  });
+
+  document.getElementById('backToStatsBtn').addEventListener('click', () => {
+    document.getElementById('telemetryOverlay').style.display = 'flex';
+    document.getElementById('downloadBtn').style.display = 'none';
+    document.getElementById('backToStatsBtn').style.display = 'none';
+  });
+
+  checkInterval = setInterval(checkStatus, 500);
+  checkStatus();
+</script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Humanoid Spatial Mapping Portal</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #e0e0e0; padding: 40px; }
+        .container { max-width: 600px; margin: 0 auto; background: #1e1e1e; padding: 30px; border-radius: 8px; }
+        h2 { color: #ffffff; margin-bottom: 20px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; }
+        select, input[type="file"] { width: 100%; padding: 10px; background: #2d2d2d; border: 1px solid #3d3d3d; color: #fff; border-radius: 4px; box-sizing: border-box; }
+        button { background: #007acc; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold; }
+        button:hover { background: #0062a3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Upload Mapping Feed</h2>
+        <form action="/upload" method="post" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="video">Select MP4 Video Source</label>
+                <input type="file" id="video" name="video" accept="video/mp4" required>
+            </div>
+            <div class="form-group">
+                <label for="deviceSelect">Select Recording Hardware Target</label>
+                <select id="deviceSelect" name="deviceSelect" class="device-select" required>
+                    <option value="24" disabled selected>Select the recording device</option>
+                    <optgroup label="Apple">
+                      <option value="28">iPhone 8 / 8 Plus</option>
+                      <option value="28">iPhone X</option>
+                      <option value="26">iPhone XR / XS / XS Max</option>
+                      <option value="26">iPhone 11 / 11 Pro / 11 Pro Max</option>
+                      <option value="26">iPhone SE (2nd & 3rd Gen)</option>
+                      <option value="26">iPhone 12 / 12 Mini</option>
+                      <option value="26">iPhone 12 Pro / Pro Max</option>
+                      <option value="26">iPhone 13 / 13 Mini</option>
+                      <option value="26">iPhone 13 Pro / Pro Max</option>
+                      <option value="26">iPhone 14 / 14 Plus</option>
+                      <option value="24">iPhone 14 Pro / Pro Max</option>
+                      <option value="26">iPhone 15 / 15 Plus</option>
+                      <option value="24">iPhone 15 Pro / Pro Max</option>
+                    </optgroup>
+                    <optgroup label="Google">
+                      <option value="27">Pixel 2 / 2 XL</option>
+                      <option value="28">Pixel 3 / 3 XL</option>
+                      <option value="27">Pixel 4 / 4 XL</option>
+                      <option value="27">Pixel 5</option>
+                      <option value="24">Pixel 6 / 6 Pro</option>
+                      <option value="25">Pixel 7 / 7 Pro</option>
+                      <option value="25">Pixel 8 / 8 Pro</option>
+                      <option value="24">Pixel Fold</option>
+                    </optgroup>
+                    <optgroup label="Huawei">
+                      <option value="27">Mate 20 / Mate 20 Pro</option>
+                      <option value="27">Mate 30 Pro</option>
+                      <option value="23">Mate 40 Pro</option>
+                      <option value="24">Mate 50 Pro</option>
+                      <option value="27">Mate 60 Pro</option>
+                      <option value="27">P20 Pro</option>
+                      <option value="27">P30 Pro</option>
+                      <option value="23">P40 Pro</option>
+                      <option value="23">P50 Pro</option>
+                      <option value="25">P60 Pro</option>
+                    </optgroup>
+                    <optgroup label="Motorola">
+                      <option value="26">Edge 2022 / 2023</option>
+                      <option value="24">Edge Plus</option>
+                      <option value="26">Moto G Stylus (2022/2023)</option>
+                      <option value="26">Moto G Power (2022/2023)</option>
+                      <option value="26">Moto G Play</option>
+                      <option value="29">Moto G 5G (2024)</option>
+                      <option value="24">Razr / Razr Plus</option>
+                    </optgroup>
+                    <optgroup label="OnePlus">
+                      <option value="25">OnePlus 6 / 6T</option>
+                      <option value="26">OnePlus 7 / 7 Pro</option>
+                      <option value="25">OnePlus 8 / 8 Pro</option>
+                      <option value="23">OnePlus 9 / 9 Pro</option>
+                      <option value="23">OnePlus 10 Pro</option>
+                      <option value="24">OnePlus 11</option>
+                      <option value="23">OnePlus 12</option>
+                      <option value="26">OnePlus Nord N20 / N30</option>
+                    </optgroup>
+                    <optgroup label="Samsung">
+                      <option value="26">Galaxy S8 / S8 Plus</option>
+                      <option value="26">Galaxy Note 8</option>
+                      <option value="26">Galaxy S9 / S9 Plus</option>
+                      <option value="26">Galaxy Note 9</option>
+                      <option value="26">Galaxy S10 / S10 Plus</option>
+                      <option value="27">Galaxy Note 10 / 10 Plus</option>
+                      <option value="26">Galaxy S20 / S20 Plus / S20 Ultra</option>
+                      <option value="26">Galaxy Note 20 / Ultra</option>
+                      <option value="26">Galaxy S21 / S21 Plus / S21 Ultra</option>
+                      <option value="23">Galaxy S22 / S22 Plus / S22 Ultra</option>
+                      <option value="24">Galaxy S23 / S23 Plus</option>
+                      <option value="23">Galaxy S23 Ultra</option>
+                      <option value="24">Galaxy S24 / S24 Plus / S24 Ultra</option>
+                      <option value="27">Galaxy Z Flip 3 / 4</option>
+                      <option value="24">Galaxy Z Flip 5</option>
+                      <option value="26">Galaxy Z Fold 3</option>
+                      <option value="23">Galaxy Z Fold 4 / 5</option>
+                      <option value="26">Galaxy A53 / A54</option>
+                    </optgroup>
+                    <optgroup label="Other">
+                      <option value="24">Generic Android (24mm Equivalent)</option>
+                      <option value="26">Generic Android (26mm Equivalent)</option>
+                      <option value="28">Generic Android (28mm Equivalent)</option>
+                    </optgroup>
+                </select>
+            </div>
+            <button type="submit">Initialize Pipeline Execution</button>
+        </form>
+    </div>
+</body>
+</html>
