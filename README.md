@@ -1,6 +1,6 @@
-# Monocular Spatial Vision Pipeline
+# Monocular Spatial Vision Pipeline v2
 
-This repository contains a high performance monocular vision pipeline engineered for autonomous robotics and spatial reconstruction. The system transforms flat 2D video feeds into mathematically accurate 3D point clouds without relying on physical LiDAR sensors or stereo camera hardware.
+This repository contains a high performance monocular vision pipeline engineered for autonomous robotics and spatial reconstruction. The system transforms flat 2D video feeds into mathematically accurate 3D point clouds without relying on physical LiDAR sensors or stereo camera hardware. Version 2 completely abandons standard PyTorch execution and introduces TensorRT compilation to drastically reduce inference latency while operating strictly within a 14GB VRAM ceiling.
 
 ## 1) Algorithmic Foundations
 
@@ -12,10 +12,10 @@ $$f_{px} = \frac{f_{35} \times w}{36}$$
 
 The variable $w$ represents the horizontal pixel resolution of the video frame. The anchor value of 36 represents the physical width in millimeters of a standard 35mm film frame. By mapping the equivalent focal length to the digital resolution we create a universal geometric baseline for any smartphone or web camera.
 
-Electronic Image Stabilization often sabotages this math by inducing an invisible software crop on the sensor. This crop artificially narrows the field of view and increases the true focal length. Our pipeline allows for dynamic overriding of the $f_{px}$ value based on physical checkerboard calibration scripts to guarantee sub-millimeter precision during the 3D unprojection phase.
+Electronic Image Stabilization often sabotages this math by inducing an invisible software crop on the sensor. This crop artificially narrows the field of view and increases the true focal length. Our pipeline allows for dynamic overriding of the $f_{px}$ value based on physical checkerboard calibration scripts to guarantee sub millimeter precision during the 3D unprojection phase.
 
-### 2. Dense Depth Inference
-We utilize the Depth Anything 3 architecture to extract depth from flat images. Traditional stereo vision relies on calculating pixel disparity between two distinct lenses. This pipeline uses a single stream transformer network that understands semantic context and physical scale.
+### 2. Dense Depth Inference via TensorRT
+We utilize the Depth Anything 3 architecture to extract depth from flat images. Version 2 replaces the heavy safetensors model with a compiled TensorRT engine binary. This standalone execution completely removes the original repository dependencies and accelerates the pipeline to support near real time processing limits.
 
 The model analyzes texture gradients and structural edges to assign an absolute metric distance to every single pixel. The output is a high resolution depth map where the Z axis is strictly defined in physical meters rather than arbitrary relative values. This metric scale is mandatory for autonomous navigation algorithms that require real world distance calculations to prevent collisions.
 
@@ -39,19 +39,20 @@ We apply statistical outlier removal to eliminate floating noise artifacts. The 
 
 ## 2) Directory Blueprint
 
-You must adhere to this exact folder structure for the pipeline to execute correctly. The model weights must be placed exactly as shown below.
+You must adhere to this exact folder structure for the pipeline to execute correctly. The TensorRT engine replaces the bulky model weights from version 1.
 
 ```text
 vision_pipeline/
 ├── DA3_Metric_Model/
 │   ├── README.md
-│   ├── config.json          <-- (Must be downloaded manually)
-│   └── model.safetensors    <-- (Must be downloaded manually)
-├── scripts/                 <-- (Core spatial math and processing)
-├── static/                  <-- (Frontend web viewer and JS)
-├── Depth-Anything-3/        <-- (Flattened framework API files)
-├── app.py                   <-- (Flask web server entry point)
-├── main.py                  <-- (Local backend execution loop)
+│   └── da3_metric_518_fp16.engine   <-- (Compiled TensorRT binary)
+├── scripts/                         <-- (Core spatial math and TensorRT inference)
+│   └── supporting/                  <-- (Diagnostic and build tools)
+├── templates/                       <-- (Frontend web HTML templates)
+├── active_session/                  <-- (Temporary processing and telemetry)
+├── outputs/                         <-- (Final point cloud storage)
+├── uploads/                         <-- (Raw video ingestion)
+├── app.py                           <-- (Flask web server entry point)
 ├── requirements.txt
 └── .gitignore
 ```
@@ -61,9 +62,8 @@ vision_pipeline/
 The pipeline includes a custom built web application interface engineered to handle heavy 3D rendering and user management without crashing the browser thread.
 
 * **Hardware Preset Catalog** The interface features a database of over 100 mobile devices. Users simply select their phone model and the frontend automatically injects the correct 35mm equivalent focal length into the backend python engine.
-* **Asynchronous Processing** Video processing blocks the main server thread. The frontend utilizes asynchronous polling to track the Python backend progress in real time and updates a dynamic progress bar for each stage of the extraction and optimization loop.
+* **Asynchronous Processing** Video processing blocks the main server thread. The frontend utilizes asynchronous polling to track the Python backend progress in real time and updates a dynamic telemetry overlay for each stage of the extraction and optimization loop.
 * **Client Side 3D Rendering** The viewer utilizes Three.js to render massive PLY point clouds directly in the browser using WebGL. This offloads the graphical rendering burden from the server directly to the local GPU of the user.
-* **Data Management** Users can visually manage their completed pipeline runs. The interface allows for instant deletion of heavy point cloud data or immediate transition into the interactive 3D visualizer tool.
 
 ## 4) Deployment and Execution
 
@@ -86,11 +86,11 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**Step 3 Download inference weights**
-The Depth Anything 3 model weights are too massive for standard version control storage. You must acquire them manually.
-1. Navigate to the official Hugging Face repository for Depth Anything 3.
-2. Download the `model.safetensors` and `config.json` files.
-3. Place both files directly inside the `DA3_Metric_Model/` directory.
+**Step 3 Compile inference weights**
+The raw PyTorch weights are deprecated in this version. You must build the TensorRT engine using the provided supporting scripts to enable the fast inference loop.
+1. Navigate to the `scripts/supporting` directory.
+2. Execute the engine build script to compile the model for your specific hardware.
+3. Ensure the resulting `.engine` file is placed directly inside the `DA3_Metric_Model/` directory.
 
 **Step 4 Execute the backend**
 Launch the python application to begin processing your video files locally.
@@ -102,7 +102,7 @@ python app.py
 If you are deploying this pipeline on a remote headless Linux server you must use a production WSGI server and a secure networking tunnel to expose the web interface.
 
 **Step 1 Provision the production environment**
-Follow Steps 1 through 3 from the Local CPU Deployment guide to clone the code and download the required weights.
+Follow Steps 1 through 3 from the Local CPU Deployment guide to clone the code and compile the TensorRT engine.
 
 **Step 2 Install the Ngrok Agent**
 Download and install the Ngrok tunneling tool to securely route traffic from your remote server to the internet without opening firewall ports.
@@ -134,8 +134,4 @@ nohup ngrok http --url=<YOUR_STATIC_DOMAIN_HERE> 127.0.0.1:5000 > /root/vision_p
 When you need to restart the server or push new code updates you must terminate the existing background processes to free up the network port before restarting Gunicorn.
 ```bash
 pkill gunicorn
-<<<<<<< HEAD
 ```
-=======
-```
->>>>>>> 2cd68d8 (Finalized v1)
