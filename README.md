@@ -1,6 +1,6 @@
-# Monocular Spatial Vision Pipeline
+# Monocular Spatial Vision Pipeline v2.0
 
-This repository contains a high performance monocular vision pipeline engineered for autonomous robotics and spatial reconstruction. The system transforms flat 2D video feeds into mathematically accurate 3D point clouds without relying on physical LiDAR sensors or stereo camera hardware.
+This repository contains a high performance version 2 of the monocular vision pipeline engineered for autonomous robotics and spatial reconstruction. The system transforms flat 2D video feeds into mathematically accurate 3D point clouds without relying on physical LiDAR sensors or stereo camera hardware. Instead of the slow DA3 safetensors model utilized in the previous version, this approach makes use of TensorRT on Nvidia architecture to reduce latency via FP16 calculations
 
 ## 1) Algorithmic Foundations
 
