@@ -134,8 +134,4 @@ nohup ngrok http --url=<YOUR_STATIC_DOMAIN_HERE> 127.0.0.1:5000 > /root/vision_p
 When you need to restart the server or push new code updates you must terminate the existing background processes to free up the network port before restarting Gunicorn.
 ```bash
 pkill gunicorn
-<<<<<<< HEAD
 ```
-=======
-```
->>>>>>> 2cd68d8 (Finalized v1)
